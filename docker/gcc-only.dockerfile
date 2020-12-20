@@ -10,7 +10,10 @@ RUN git clone --branch v1.8.1 --single-branch https://github.com/ioi/isolate.git
 RUN make isolate
 
 # Stage 1: Generate front-end
-FROM node:13-alpine AS frontend
+FROM node:14-alpine AS frontend
+
+# Install node-gyp requirements
+RUN apk add --no-cache python3 make g++
 
 COPY ./ /kjudge
 
@@ -37,7 +40,7 @@ RUN go generate && go build -tags production -o kjudge cmd/kjudge/main.go
 # Stage 4: Create awesome output image
 FROM alpine:3
 
-RUN apk add --no-cache libcap make g++
+RUN apk add --no-cache libcap make g++ openssl bash
 
 COPY --from=isolate /isolate/ /isolate
 
@@ -45,9 +48,11 @@ WORKDIR /isolate
 RUN make install
 
 COPY --from=backend /kjudge/kjudge /usr/local/bin
+COPY --from=backend /kjudge/scripts /scripts
 
-VOLUME ["/data"]
+VOLUME ["/data", "/certs"]
 
-EXPOSE 80
+EXPOSE 80 443
 
-CMD ["kjudge", "-port", "80", "-file", "/data/kjudge.db"]
+WORKDIR /
+ENTRYPOINT ["scripts/start_container.sh"]
